@@ -1,0 +1,189 @@
+
+
+
+pipeline {
+        agent any
+
+
+        stages {
+				stage("Clear old data"){
+					steps{
+					
+					
+						script {
+									withCredentials([sshUserPrivateKey(
+									credentialsId: "docker", 
+									keyFileVariable: 'sshKey',
+									usernameVariable: 'sshUser'
+								)]) {
+									def remote = [:];
+									remote.name = 'docker-host';
+									remote.host = '192.168.10.251';
+									remote.user = sshUser; 
+									remote.identityFile = sshKey;
+									remote.allowAnyHosts = true;
+					
+					
+					
+									sshCommand remote: remote, command: "docker stop  range_web || true"
+									sshCommand remote: remote, command: "docker stop  range_db || true"
+									
+									sshCommand remote: remote, command: "docker rm  range_web || true"
+									sshCommand remote: remote, command: "docker rm  range_db || true"
+									
+									sshCommand remote: remote, command: "rm -r RANGE || true"
+							
+									sshCommand remote: remote, command: "docker network remove range_network || true"
+									sshCommand remote: remote, command: "docker network create range_network || true"
+									
+									sshCommand remote: remote, command: "docker rmi shooting_range_db || true"
+									sshCommand remote: remote, command: "docker rmi shooting_range_web || true"
+									
+					 
+
+
+					
+									}
+								}
+						}
+				}
+		
+		
+				stage("Server Instalation"){
+					
+
+                        steps {
+						
+								script {
+									withCredentials([sshUserPrivateKey(
+									credentialsId: "docker", 
+									keyFileVariable: 'sshKey',
+									usernameVariable: 'sshUser'
+								)]) {
+									def remote = [:];
+									remote.name = 'docker-host';
+									remote.host = '192.168.10.251';
+									remote.user = sshUser; 
+									remote.identityFile = sshKey;
+									remote.allowAnyHosts = true;
+
+									sshCommand remote: remote, command: "docker ps"
+									
+									sshCommand remote: remote, command: "mkdir RANGE && mkdir RANGE/range_web && cd RANGE/range_web"
+									
+									sshPut remote: remote, from: 'apache/dockerfile', into: 'RANGE/range_web/'
+									sshCommand remote: remote, command: "docker build -t shooting_range_web - < RANGE/range_web/dockerfile " 
+									sshCommand remote: remote, command: "docker run -dit --name range_web --network range_network -p 80:80 shooting_range_web" 
+									
+									
+			
+									
+									
+									sshCommand remote: remote, command: "cd RANGE && mkdir range_db && cd range_db"
+									sshPut remote: remote, from: 'db/dockerfile', into: 'RANGE/range_db/'
+									sshCommand remote: remote, command: "docker build -t shooting_range_db  - < RANGE/range_db/dockerfile" 
+									sshCommand remote: remote, command: "docker run \
+																		--detach \
+																		--name=range_db \
+																		--env='MYSQL_ROOT_PASSWORD=Clico123!' \
+																		--publish 6603:3306 \
+																		--volume=/var/docker/range_db/conf.d:/etc/mysql/conf.d \
+																		--volume=/var/docker/range_db/mysql-data:/var/lib/mysql \
+																		--network range_network \
+																		shooting_range_db" 
+									
+									
+								}
+
+}								
+
+                        }
+                }
+				
+				
+					stage("Upload data"){
+					steps{
+					
+					
+						script {
+									withCredentials([sshUserPrivateKey(
+									credentialsId: "docker", 
+									keyFileVariable: 'sshKey',
+									usernameVariable: 'sshUser'
+								)]) {
+									def remote = [:];
+									remote.name = 'docker-host';
+									remote.host = '192.168.10.251';
+									remote.user = sshUser; 
+									remote.identityFile = sshKey;
+									remote.allowAnyHosts = true;
+					
+					
+						
+									sshPut remote: remote, from: 'apache/php.ini', into: 'RANGE/range_web'
+									sshCommand remote: remote, command: "docker cp RANGE/range_web/php.ini range_web:/usr/local/etc/php/php.ini" 
+									sshCommand remote: remote, command: "docker kill --signal='USR1' range_web" 
+													
+
+													
+									sshPut remote: remote, from: 'apache/Range_Code.tar', into: 'RANGE/range_web'									
+									sshCommand remote: remote, command: "docker cp RANGE/range_web/Range_Code.tar range_web:/var/www/html/Range_Code.tar" 
+									sshCommand remote: remote, command: "docker exec range_web bash -c 'cd /var/www/html/ && tar -xvf Range_Code.tar' "
+					
+				
+				
+				
+									sshPut remote: remote, from: 'db/backup.sql', into: 'RANGE/range_db'
+									sshCommand remote: remote, command: "cat RANGE/range_db/backup.sql | docker exec -i range_db \
+											/usr/bin/mysql -u root \
+											--password=Clico123! mysql   "
+					
+									}
+								}
+						}
+				}
+				
+
+
+
+			stage("Sec - Infrastruture check"){
+					steps{
+					
+					
+						script {
+									withCredentials([sshUserPrivateKey(
+									credentialsId: "docker", 
+									keyFileVariable: 'sshKey',
+									usernameVariable: 'sshUser'
+								)]) {
+									def remote = [:];
+									remote.name = 'docker-host';
+									remote.host = '192.168.10.251';
+									remote.user = sshUser; 
+									remote.identityFile = sshKey;
+									remote.allowAnyHosts = true;
+					
+	
+	
+									sshCommand remote: remote, command: "cd /security && rm shooting_range* || true"
+									sshCommand remote: remote, command: "docker save -o /security/shooting_range_web.tar  shooting_range_web:latest "
+									sshCommand remote: remote, command: "docker save -o /security/shooting_range_db.tar  shooting_range_db:latest " 
+									
+				
+									sshCommand remote: remote, command: "export CHKP_CLOUDGUARD_ID=4697b73a-93b9-432a-baa8-0b3fae47d00a && export CHKP_CLOUDGUARD_SECRET=uiptp1t8fieon1io5gc4cxy6  && export SHIFTLEFT_REGION=eu1 && 	 cd /security && ./shiftleft image-scan  -i shooting_range_web.tar  -t 360  || true"
+									sshCommand remote: remote, command: "export CHKP_CLOUDGUARD_ID=4697b73a-93b9-432a-baa8-0b3fae47d00a && export CHKP_CLOUDGUARD_SECRET=uiptp1t8fieon1io5gc4cxy6  && export SHIFTLEFT_REGION=eu1 && 	 cd /security && ./shiftleft image-scan  -i shooting_range_db.tar  -t 360  || true"
+
+
+					
+									}
+								}
+						}
+				}
+
+
+
+				
+
+        }
+}
+

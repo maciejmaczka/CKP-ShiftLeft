@@ -1,0 +1,25 @@
+#
+#	Apache Web Server
+#	range_web
+#
+
+
+
+FROM php:7.4.27-apache
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+#RUN apt-get update && apt-get -y install \
+#net-tools \
+#supervisor \
+#iputils-ping 
+
+
+
+
+RUN docker-php-ext-install mysqli && docker-php-ext-enable mysqli
+
+
+EXPOSE 80
+
+

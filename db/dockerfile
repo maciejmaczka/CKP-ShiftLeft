@@ -1,0 +1,30 @@
+#
+#	MYSQL Database
+#	range_db
+#
+
+FROM mysql:latest
+
+RUN apt update && apt-get upgrade -y && apt -y install \
+supervisor \
+wget \
+iputils-ping \
+python3
+
+
+
+
+
+#
+# Check Point Remediation
+#
+#RUN apt-get -y remove --purge  \
+#python2.7 \
+#libpython-stdlib \
+#libpython2-stdlib  \
+#libpython2.7-minimal  \
+#libpython2.7-stdlib  \
+#python-minimal  \
+#python2-minimal  \
+#python2.7-minimal  \
+
